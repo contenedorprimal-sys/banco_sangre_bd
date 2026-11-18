@@ -1,51 +1,43 @@
 Project banco_sangre {
   database_type: 'MySQL'
-  Note: '''
-    Banco de Sangre · esquema de la Unidad 1 (12 tablas).
-    Motor: MySQL 8 InnoDB. Fuente: sql/00_esquema.sql.
-
-    No representa la vista v_unidades_disponibles ni las particiones,
-    porque DBML no modela vistas ni particionamiento. Ver README.md.
-    movimientos_inventario.id_unidad y auditoria_unidades.id_unidad son
-    referencias lógicas sin FK física.
-  '''
+  Note: 'Banco de Sangre - Modelo relacional completo'
 }
 
-// ---------------------------------------------------------------------------
-// Catálogos y enums compartidos
-// ---------------------------------------------------------------------------
+// ==========================================
+// ENUMERACIONES
+// ==========================================
 
-enum sexo {
+Enum sexo {
   F
   M
   X
 }
 
-enum grupo_abo {
+Enum tipo_sangre {
   A
   B
   AB
   O
 }
 
-enum factor_rh {
-  "+"
-  "-"
+Enum factor_rh {
+  positivo
+  negativo
 }
 
-enum tipo_donacion {
+Enum tipo_donacion {
   voluntaria
   reposicion
   autologa
 }
 
-enum estado_donacion {
+Enum estado_donacion {
   registrada
   apta
   rechazada
 }
 
-enum tipo_componente {
+Enum tipo_componente {
   sangre_total
   globulos_rojos
   plasma
@@ -53,7 +45,7 @@ enum tipo_componente {
   crioprecipitado
 }
 
-enum estado_unidad {
+Enum estado_unidad {
   disponible
   reservada
   despachada
@@ -61,7 +53,7 @@ enum estado_unidad {
   descartada
 }
 
-enum tipo_prueba {
+Enum tipo_prueba {
   VIH
   HBV
   HCV
@@ -71,37 +63,37 @@ enum tipo_prueba {
   pruebas_cruzadas
 }
 
-enum resultado_prueba {
+Enum resultado_prueba {
   negativo
   positivo
   pendiente
 }
 
-enum convenio {
+Enum estado_convenio {
   activo
   suspendido
 }
 
-enum prioridad_solicitud {
+Enum prioridad_solicitud {
   urgente
   programada
 }
 
-enum estado_solicitud {
+Enum estado_solicitud {
   pendiente
   parcial
   surtida
   cancelada
 }
 
-enum estado_despacho {
+Enum estado_despacho {
   preparando
   en_transito
   entregado
   cancelado
 }
 
-enum tipo_movimiento {
+Enum tipo_movimiento {
   entrada
   reserva
   liberacion
@@ -111,284 +103,282 @@ enum tipo_movimiento {
   ajuste
 }
 
-enum accion_auditoria {
+Enum accion_auditoria {
   INSERT
   UPDATE
   DELETE
 }
 
-// ---------------------------------------------------------------------------
-// Núcleo: donantes → donaciones → unidades → pruebas
-// ---------------------------------------------------------------------------
+// ==========================================
+// 1. DONANTES
+// ==========================================
 
 Table donantes {
-  id_donante       integer      [pk, increment]
-  nombre           varchar(60)  [not null]
-  apellido_paterno varchar(60)  [not null]
+  id_donante int [pk, increment]
+  nombre varchar(60) [not null]
+  apellido_paterno varchar(60) [not null]
   apellido_materno varchar(60)
-  fecha_nacimiento date         [not null]
-  sexo             sexo         [not null]
-  tipo_sangre      grupo_abo    [not null]
-  factor_rh        factor_rh    [not null]
-  telefono         varchar(20)
-  correo           varchar(120) [unique]
-  direccion        varchar(160)
-  fecha_registro   datetime     [not null, default: `CURRENT_TIMESTAMP`]
-  activo           tinyint      [not null, default: 1]
+  fecha_nacimiento date [not null]
+  sexo sexo [not null]
+  tipo_sangre tipo_sangre [not null]
+  factor_rh factor_rh [not null]
+  telefono varchar(20)
+  correo varchar(120) [unique]
+  direccion varchar(160)
+  fecha_registro datetime [not null, default: `CURRENT_TIMESTAMP`]
+  activo tinyint [not null, default: 1]
 
   indexes {
     (tipo_sangre, factor_rh) [name: 'idx_donantes_tipo']
-    activo                   [name: 'idx_donantes_activo']
+    activo [name: 'idx_donantes_activo']
   }
-
-  checks {
-    `fecha_nacimiento >= '1900-01-01'` [name: 'chk_donante_nacimiento']
-  }
-
-  Note: 'Personas que donan. Sin diagnóstico clínico; solo contacto, elegibilidad y clasificación sanguínea.'
 }
+
+// ==========================================
+// 2. DONACIONES
+// ==========================================
 
 Table donaciones {
-  id_donacion      integer        [pk, increment]
-  id_donante       integer        [not null]
-  fecha_donacion   datetime       [not null]
-  tipo_donacion    tipo_donacion  [not null, default: 'voluntaria']
-  lugar            varchar(80)
-  peso_kg          decimal(5,2)
-  hemoglobina      decimal(4,2)
+  id_donacion int [pk, increment]
+  id_donante int [not null]
+  fecha_donacion datetime [not null]
+  tipo_donacion tipo_donacion [not null, default: 'voluntaria']
+  lugar varchar(80)
+  peso_kg decimal(5,2)
+  hemoglobina decimal(4,2)
   presion_arterial varchar(12)
-  estado           estado_donacion [not null, default: 'registrada']
-  observaciones    varchar(255)
-
-  indexes {
-    fecha_donacion            [name: 'idx_donaciones_fecha']
-    (id_donante, fecha_donacion) [name: 'idx_donaciones_donante']
-  }
-
-  checks {
-    `peso_kg IS NULL OR peso_kg > 0` [name: 'chk_donacion_peso']
-  }
-
-  Note: 'Cada extracción. Una donación puede originar varias unidades/componentes.'
-}
-
-Table unidades_sangre {
-  id_unidad         integer          [pk, increment]
-  id_donacion       integer          [not null]
-  codigo_barras     varchar(40)      [not null, unique, note: 'Identificador trazable de la unidad']
-  tipo_componente   tipo_componente  [not null]
-  grupo_abo         grupo_abo        [not null]
-  factor_rh         factor_rh        [not null]
-  volumen_ml        integer          [not null]
-  fecha_extraccion  date             [not null]
-  fecha_vencimiento date             [not null]
-  estado            estado_unidad    [not null, default: 'disponible']
-  ubicacion         varchar(40)
-
-  indexes {
-    (estado, tipo_componente, fecha_vencimiento) [name: 'idx_unidades_disponibilidad']
-    (grupo_abo, factor_rh, estado)               [name: 'idx_unidades_grupo']
-  }
-
-  checks {
-    `volumen_ml > 0`                              [name: 'chk_unidad_volumen']
-    `fecha_vencimiento >= fecha_extraccion`       [name: 'chk_unidad_fechas']
-  }
-
-  Note: 'Inventario real. Vencimiento según componente: GR 35–42 días, plasma ~1 año, plaquetas 5–7 días.'
-}
-
-Table pruebas_laboratorio {
-  id_prueba     integer         [pk, increment]
-  id_unidad     integer         [not null]
-  tipo_prueba   tipo_prueba     [not null]
-  resultado     resultado_prueba [not null, default: 'pendiente']
-  fecha_prueba  datetime        [not null, default: `CURRENT_TIMESTAMP`]
-  responsable   varchar(80)
+  estado estado_donacion [not null, default: 'registrada']
   observaciones varchar(255)
 
   indexes {
-    (id_unidad, tipo_prueba)   [name: 'idx_pruebas_unidad']
-    (resultado, tipo_prueba)   [name: 'idx_pruebas_resultado']
+    fecha_donacion [name: 'idx_donaciones_fecha']
+    (id_donante, fecha_donacion) [name: 'idx_donaciones_donante']
   }
-
-  Note: 'Tamizaje obligatorio (VIH, HBV, HCV, sífilis, Chagas, grupo y pruebas cruzadas).'
 }
 
-// ---------------------------------------------------------------------------
-// Atención hospitalaria: solicitudes → despachos
-// ---------------------------------------------------------------------------
+// ==========================================
+// 3. UNIDADES DE SANGRE
+// ==========================================
+
+Table unidades_sangre {
+  id_unidad int [pk, increment]
+  id_donacion int [not null]
+  codigo_barras varchar(40) [not null, unique]
+  tipo_componente tipo_componente [not null]
+  grupo_abo tipo_sangre [not null]
+  factor_rh factor_rh [not null]
+  volumen_ml int [not null]
+  fecha_extraccion date [not null]
+  fecha_vencimiento date [not null]
+  estado estado_unidad [not null, default: 'disponible']
+  ubicacion varchar(40)
+
+  indexes {
+    (estado, tipo_componente, fecha_vencimiento) [name: 'idx_unidades_disponibilidad']
+    (grupo_abo, factor_rh, estado) [name: 'idx_unidades_grupo']
+  }
+}
+
+// ==========================================
+// 4. PRUEBAS DE LABORATORIO
+// ==========================================
+
+Table pruebas_laboratorio {
+  id_prueba int [pk, increment]
+  id_unidad int [not null]
+  tipo_prueba tipo_prueba [not null]
+  resultado resultado_prueba [not null, default: 'pendiente']
+  fecha_prueba datetime [not null, default: `CURRENT_TIMESTAMP`]
+  responsable varchar(80)
+  observaciones varchar(255)
+
+  indexes {
+    (id_unidad, tipo_prueba) [name: 'idx_pruebas_unidad']
+    (resultado, tipo_prueba) [name: 'idx_pruebas_resultado']
+  }
+}
+
+// ==========================================
+// 5. HOSPITALES
+// ==========================================
 
 Table hospitales {
-  id_hospital integer      [pk, increment]
-  nombre      varchar(120) [not null]
-  contacto    varchar(80)
-  telefono    varchar(20)
-  correo      varchar(120)
-  direccion   varchar(160)
-  convenio    convenio     [not null, default: 'activo']
+  id_hospital int [pk, increment]
+  nombre varchar(120) [not null]
+  contacto varchar(80)
+  telefono varchar(20)
+  correo varchar(120)
+  direccion varchar(160)
+  convenio estado_convenio [not null, default: 'activo']
 
   indexes {
     convenio [name: 'idx_hospitales_convenio']
   }
-
-  Note: 'Clientes institucionales con convenio.'
 }
 
+// ==========================================
+// 6. SOLICITUDES
+// ==========================================
+
 Table solicitudes {
-  id_solicitud    integer            [pk, increment]
-  id_hospital     integer            [not null]
-  fecha_solicitud datetime           [not null, default: `CURRENT_TIMESTAMP`]
-  prioridad       prioridad_solicitud [not null, default: 'programada']
-  estado          estado_solicitud   [not null, default: 'pendiente']
-  observaciones   varchar(255)
+  id_solicitud int [pk, increment]
+  id_hospital int [not null]
+  fecha_solicitud datetime [not null, default: `CURRENT_TIMESTAMP`]
+  prioridad prioridad_solicitud [not null, default: 'programada']
+  estado estado_solicitud [not null, default: 'pendiente']
+  observaciones varchar(255)
 
   indexes {
     (estado, prioridad, fecha_solicitud) [name: 'idx_solicitudes_estado']
-    (id_hospital, fecha_solicitud)       [name: 'idx_solicitudes_hospital']
+    (id_hospital, fecha_solicitud) [name: 'idx_solicitudes_hospital']
   }
-
-  Note: 'Pedido de un hospital; la prioridad cambia el orden de atención.'
 }
+
+// ==========================================
+// 7. SOLICITUD DETALLE
+// ==========================================
 
 Table solicitud_detalle {
-  id_detalle      integer          [pk, increment]
-  id_solicitud    integer          [not null]
-  tipo_componente tipo_componente  [not null]
-  grupo_abo       grupo_abo        [not null]
-  factor_rh       factor_rh        [not null]
-  cantidad        integer          [not null]
+  id_detalle int [pk, increment]
+  id_solicitud int [not null]
+  tipo_componente tipo_componente [not null]
+  grupo_abo tipo_sangre [not null]
+  factor_rh factor_rh [not null]
+  cantidad int [not null]
 
   indexes {
-    id_solicitud                              [name: 'idx_solicitud_detalle']
-    (tipo_componente, grupo_abo, factor_rh)   [name: 'idx_solicitud_componente']
+    id_solicitud [name: 'idx_solicitud_detalle']
+    (tipo_componente, grupo_abo, factor_rh) [name: 'idx_solicitud_componente']
   }
-
-  checks {
-    `cantidad > 0` [name: 'chk_detalle_cantidad']
-  }
-
-  Note: 'Qué componente y cuántas unidades pide cada solicitud.'
 }
 
+// ==========================================
+// 8. DESPACHOS
+// ==========================================
+
 Table despachos {
-  id_despacho    integer         [pk, increment]
-  id_solicitud   integer         [not null]
-  fecha_despacho datetime        [not null, default: `CURRENT_TIMESTAMP`]
-  responsable    varchar(80)
-  destino        varchar(160)
-  estado         estado_despacho [not null, default: 'preparando']
+  id_despacho int [pk, increment]
+  id_solicitud int [not null]
+  fecha_despacho datetime [not null, default: `CURRENT_TIMESTAMP`]
+  responsable varchar(80)
+  destino varchar(160)
+  estado estado_despacho [not null, default: 'preparando']
 
   indexes {
     fecha_despacho [name: 'idx_despachos_fecha']
-    estado         [name: 'idx_despachos_estado']
+    estado [name: 'idx_despachos_estado']
   }
-
-  Note: 'Salida física de unidades hacia un hospital.'
 }
 
+// ==========================================
+// 9. DETALLE DE DESPACHO
+// ==========================================
+
 Table despacho_detalle {
-  id_despacho integer [not null]
-  id_unidad   integer [not null]
+  id_despacho int [not null]
+  id_unidad int [not null]
 
   indexes {
     (id_despacho, id_unidad) [pk]
   }
-
-  Note: 'Unidades concretas entregadas en cada despacho.'
 }
 
-// ---------------------------------------------------------------------------
-// Operación: historial, auditoría y disponibilidad
-// ---------------------------------------------------------------------------
+// ==========================================
+// 10. MOVIMIENTOS DE INVENTARIO
+// ==========================================
 
 Table movimientos_inventario {
-  id_movimiento    bigint          [not null, increment]
-  id_unidad        integer         [not null, note: 'Referencia lógica, sin FK física']
-  tipo_movimiento  tipo_movimiento [not null]
-  fecha_movimiento datetime        [not null, default: `CURRENT_TIMESTAMP`]
-  usuario          varchar(80)
-  motivo           varchar(255)
+  id_movimiento bigint [not null, increment]
+  id_unidad int [not null, note: 'Referencia logica a unidades_sangre. Sin FK fisica por particionamiento.']
+  tipo_movimiento tipo_movimiento [not null]
+  fecha_movimiento datetime [not null, default: `CURRENT_TIMESTAMP`]
+  usuario varchar(80)
+  motivo varchar(255)
 
   indexes {
     (id_movimiento, fecha_movimiento) [pk]
-    (id_unidad, fecha_movimiento)     [name: 'idx_movimientos_unidad']
+    (id_unidad, fecha_movimiento) [name: 'idx_movimientos_unidad']
     (tipo_movimiento, fecha_movimiento) [name: 'idx_movimientos_tipo']
   }
 
-  Note: 'Historial particionado por RANGE (YEAR(fecha_movimiento)). Sin FK por regla de MySQL.'
+  Note: 'Tabla particionada por YEAR(fecha_movimiento). Particiones p2024, p2025, p2026, p2027 y pmax.'
 }
 
+// ==========================================
+// 11. AUDITORIA DE UNIDADES
+// ==========================================
+
 Table auditoria_unidades {
-  id_auditoria     bigint            [pk, increment]
-  id_unidad        integer           [not null, note: 'Referencia lógica; la llena un trigger']
-  accion           accion_auditoria  [not null]
-  usuario          varchar(80)       [not null]
-  fecha            datetime          [not null, default: `CURRENT_TIMESTAMP`]
+  id_auditoria bigint [pk, increment]
+  id_unidad int [not null, note: 'Referencia logica a unidades_sangre']
+  accion accion_auditoria [not null]
+  usuario varchar(80) [not null]
+  fecha datetime [not null, default: `CURRENT_TIMESTAMP`]
   datos_anteriores json
-  datos_nuevos     json
+  datos_nuevos json
 
   indexes {
     (id_unidad, fecha) [name: 'idx_auditoria_unidad']
-    fecha              [name: 'idx_auditoria_fecha']
+    fecha [name: 'idx_auditoria_fecha']
   }
-
-  Note: 'Evidencia de cambios sensibles sobre unidades_sangre (triggers).'
 }
 
+// ==========================================
+// 12. BITACORA DE DISPONIBILIDAD
+// ==========================================
+
 Table bitacora_disponibilidad {
-  id_registro    bigint   [pk, increment]
+  id_registro bigint [pk, increment]
   fecha_registro datetime [not null, default: `CURRENT_TIMESTAMP`]
-  uptime_seg     bigint   [not null]
+  uptime_seg bigint [not null]
 
   indexes {
     fecha_registro [name: 'idx_bitacora_fecha']
   }
-
-  Note: 'Snapshots horarios del Uptime del servidor para monitoreo.'
 }
 
-// ---------------------------------------------------------------------------
-// Relaciones (mismas acciones que el DDL)
-// ---------------------------------------------------------------------------
+// ==========================================
+// 13. VISTA DE UNIDADES DISPONIBLES
+// Representacion visual de una VIEW, no tabla fisica.
+// ==========================================
 
-Ref fk_donacion_donante: donaciones.id_donante > donantes.id_donante [delete: restrict, update: cascade]
+Table v_unidades_disponibles {
+  id_unidad int
+  codigo_barras varchar(40)
+  tipo_componente tipo_componente
+  grupo_abo tipo_sangre
+  factor_rh factor_rh
+  volumen_ml int
+  fecha_vencimiento date
+  dias_para_vencer int
 
-Ref fk_unidad_donacion: unidades_sangre.id_donacion > donaciones.id_donacion [delete: cascade, update: cascade]
-
-Ref fk_prueba_unidad: pruebas_laboratorio.id_unidad > unidades_sangre.id_unidad [delete: cascade, update: cascade]
-
-Ref fk_solicitud_hospital: solicitudes.id_hospital > hospitales.id_hospital [delete: restrict, update: cascade]
-
-Ref fk_detalle_solicitud: solicitud_detalle.id_solicitud > solicitudes.id_solicitud [delete: cascade, update: cascade]
-
-Ref fk_despacho_solicitud: despachos.id_solicitud > solicitudes.id_solicitud [delete: restrict, update: cascade]
-
-Ref fk_despacho_detalle_despacho: despacho_detalle.id_despacho > despachos.id_despacho [delete: cascade, update: cascade]
-
-Ref fk_despacho_detalle_unidad: despacho_detalle.id_unidad > unidades_sangre.id_unidad [delete: restrict, update: cascade]
-
-// ---------------------------------------------------------------------------
-// Agrupación para dbdiagram.io
-// ---------------------------------------------------------------------------
-
-TableGroup nucleo_sangre {
-  donantes
-  donaciones
-  unidades_sangre
-  pruebas_laboratorio
+  Note: 'VIEW: solo unidades disponibles y no vencidas. Calcula dias_para_vencer con DATEDIFF.'
 }
 
-TableGroup atencion_hospitalaria {
-  hospitales
-  solicitudes
-  solicitud_detalle
-  despachos
-  despacho_detalle
-}
+// ==========================================
+// RELACIONES (FOREIGN KEYS)
+// ==========================================
 
-TableGroup operacion_auditoria {
-  movimientos_inventario
-  auditoria_unidades
-  bitacora_disponibilidad
-}
+Ref fk_donacion_donante:
+  donaciones.id_donante > donantes.id_donante
+
+Ref fk_unidad_donacion:
+  unidades_sangre.id_donacion > donaciones.id_donacion
+
+Ref fk_prueba_unidad:
+  pruebas_laboratorio.id_unidad > unidades_sangre.id_unidad
+
+Ref fk_solicitud_hospital:
+  solicitudes.id_hospital > hospitales.id_hospital
+
+Ref fk_detalle_solicitud:
+  solicitud_detalle.id_solicitud > solicitudes.id_solicitud
+
+Ref fk_despacho_solicitud:
+  despachos.id_solicitud > solicitudes.id_solicitud
+
+Ref fk_despacho_detalle_despacho:
+  despacho_detalle.id_despacho > despachos.id_despacho
+
+Ref fk_despacho_detalle_unidad:
+ 
