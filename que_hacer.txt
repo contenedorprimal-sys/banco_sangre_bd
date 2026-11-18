@@ -1,0 +1,31 @@
+Proyecto de construccién sobre un banco de sangre
+
+Gestiona el ciclo completo de la sangre: registro de donantes, donaciones, unidades derivadas.
+(glébulos rojos, plasma, plaguetas), pruebas de laboratorio, solicitudes de hospitales, despachos &
+inventario con trazabilidad. (Este es el que escojimos).Propuesta 1 — Diseño e implementación de un sistema de
+base de datos administrado
+Cada equipo elige un dominio de negocio (tienda en línea, hospital, aerolínea, banco,
+universidad, u otro que proponga) y, a lo largo de las clases restantes, diseña, construye
+y administra una base de datos en MySQL que demuestre las habilidades de DBA vistas
+en el semestre completo.
+Alcance por unidad
+1. Unidad 1 — DBA y arquitectura. Justificar el motor elegido, documentar qué rol de
+DBA asumiría cada integrante del equipo, crear la base de datos y un esquema
+inicial de al menos 5 tablas relacionadas.
+2. Unidad 2 — Espacios y disponibilidad. Estimar el espacio requerido a un año;
+fragmentar al menos una tabla grande (por rango, lista o hash); automatizar una
+tarea con el Event Scheduler; documentar un escenario de RTO/RPO propio.
+3. Unidad 3 — Monitoreo y seguridad. Crear al menos 3 roles de usuario con privilegios
+diferenciados; configurar monitoreo básico (bitácora de eventos, vistas de
+performance_schema); elegir uno de los problemas de disponibilidad del temario y
+documentar cómo lo mitigarían; implementar auditoría sobre al menos una
+operación sensible.
+4. Unidad 4 — Respaldo y recuperación. Diseñar un Plan de Recuperación de
+Desastres (requerimientos, implementación, pruebas); implementar respaldos
+lógicos completos e incrementales con mysqldump; simular una pérdida de datos y
+restaurar desde el respaldo, documentando el procedimiento paso a paso.
+5. Unidad 5 — Afinación. Revisar al menos 3 parámetros de configuración relevantes;
+crear índices justificados con EXPLAIN antes y después; medir y comparar el tiempo
+de respuesta de una consulta crítica antes y después de optimizarla.
+Entregable: reporte técnico por equipo, carpeta de scripts SQL ejecutables, y una
+demo en vivo en MySQL Workbench de 15 a 20 minutos frente al grupo. 
